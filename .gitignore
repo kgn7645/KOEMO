@@ -1,0 +1,64 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# iOS
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+ios/*.xcodeproj/xcshareddata/IDEWorkspaceChecks.plist
+
+# Xcode
+ios/*.hmap
+ios/*.ipa
+ios/*.dSYM.zip
+ios/*.dSYM
+
+# CocoaPods
+ios/Pods/
+ios/Podfile.lock
+
+# Node.js
+backend/node_modules/
+backend/npm-debug.log*
+backend/yarn-debug.log*
+backend/yarn-error.log*
+backend/lerna-debug.log*
+
+# Runtime data
+backend/pids
+backend/*.pid
+backend/*.seed
+backend/*.pid.lock
+
+# Coverage directory used by tools like istanbul
+backend/coverage/
+backend/.nyc_output
+
+# Environment variables
+backend/.env
+backend/.env.local
+backend/.env.development.local
+backend/.env.test.local
+backend/.env.production.local
+
+# Logs
+backend/logs
+backend/*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+dist/
+build/

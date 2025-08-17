@@ -1,0 +1,44 @@
+# Podfile for KOEMO iOS App
+
+platform :ios, '15.0'
+use_frameworks!
+
+target 'KOEMO' do
+  # WebRTC SDK for voice calls
+  pod 'SkyWay', '~> 4.0'
+  
+  # Networking
+  pod 'Alamofire', '~> 5.8'
+  
+  # JSON Parsing
+  pod 'SwiftyJSON', '~> 5.0'
+  
+  # Socket.IO for real-time communication
+  pod 'Socket.IO-Client-Swift', '~> 16.0'
+  
+  # UI Components and Layout
+  pod 'SnapKit', '~> 5.6'
+  
+  # Keychain Services
+  pod 'KeychainAccess', '~> 4.2'
+  
+  # Testing Dependencies
+  target 'KOEMOTests' do
+    inherit! :search_paths
+    pod 'Quick', '~> 7.0'
+    pod 'Nimble', '~> 12.0'
+    pod 'OHHTTPStubs/Swift', '~> 9.1'
+  end
+  
+  target 'KOEMOUITests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
+  end
+end
