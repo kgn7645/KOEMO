@@ -22,29 +22,6 @@ struct User: Codable {
     }
 }
 
-// MARK: - User Profile
-
-struct UserProfile: Codable {
-    let nickname: String
-    let gender: Gender
-    let age: Int?
-    let region: String?
-    
-    enum Gender: String, Codable, CaseIterable {
-        case male = "male"
-        case female = "female"
-        case other = "other"
-        
-        var displayName: String {
-            switch self {
-            case .male: return "男性"
-            case .female: return "女性"
-            case .other: return "その他"
-            }
-        }
-    }
-}
-
 // MARK: - User Status
 
 struct UserStatus: Codable {
@@ -99,4 +76,5 @@ struct AuthData: Codable {
     let accessToken: String
     let refreshToken: String
     let profile: UserProfile
+    let tickets: TicketInfo?
 }

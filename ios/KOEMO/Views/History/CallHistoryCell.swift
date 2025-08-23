@@ -186,7 +186,7 @@ class CallHistoryCell: UITableViewCell {
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         
-        if Calendar.current.isToday(date) {
+        if Calendar.current.isDate(date, inSameDayAs: Date()) {
             formatter.dateFormat = "HH:mm"
         } else {
             formatter.dateFormat = "MM/dd"

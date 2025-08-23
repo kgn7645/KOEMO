@@ -78,15 +78,27 @@ class SettingsValueCell: UITableViewCell {
         valueLabel.text = value
         chevronImageView.isHidden = !hasAction
         
-        if !hasAction {
-            // If no action, move value label to the right
-            valueLabel.snp.updateConstraints { make in
-                make.right.equalToSuperview().offset(-Spacing.medium)
-            }
-        } else {
-            // Reset to normal position
-            valueLabel.snp.updateConstraints { make in
-                make.right.equalTo(chevronImageView.snp.left).offset(-Spacing.small)
+        // Remove and recreate constraints to avoid conflicts
+        valueLabel.snp.removeConstraints()
+        
+        // Update constraints safely on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            if !hasAction {
+                // If no action, move value label to the right
+                self.valueLabel.snp.makeConstraints { make in
+                    make.right.equalToSuperview().offset(-Spacing.medium)
+                    make.centerY.equalToSuperview()
+                    make.width.lessThanOrEqualTo(150)
+                }
+            } else {
+                // Reset to normal position
+                self.valueLabel.snp.makeConstraints { make in
+                    make.right.equalTo(self.chevronImageView.snp.left).offset(-Spacing.small)
+                    make.centerY.equalToSuperview()
+                    make.width.lessThanOrEqualTo(150)
+                }
             }
         }
     }

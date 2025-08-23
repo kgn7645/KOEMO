@@ -21,10 +21,10 @@ class SettingsSwitchCell: UITableViewCell {
     }()
     
     private lazy var toggleSwitch: UISwitch = {
-        let switch = UISwitch()
-        switch.onTintColor = .koemoBlue
-        switch.addTarget(self, action: #selector(switchValueChanged), for: .valueChanged)
-        return switch
+        let switchControl = UISwitch()
+        switchControl.onTintColor = .koemoBlue
+        switchControl.addTarget(self, action: #selector(switchValueChanged), for: .valueChanged)
+        return switchControl
     }()
     
     // MARK: - Properties
@@ -86,17 +86,31 @@ class SettingsSwitchCell: UITableViewCell {
         if let subtitle = subtitle, !subtitle.isEmpty {
             subtitleLabel.text = subtitle
             subtitleLabel.isHidden = false
-            
-            // Update title constraint for multiline layout
-            titleLabel.snp.updateConstraints { make in
-                make.top.equalToSuperview().offset(Spacing.small)
-            }
         } else {
             subtitleLabel.isHidden = true
+        }
+        
+        // Remove and recreate title constraints to avoid conflicts
+        titleLabel.snp.removeConstraints()
+        
+        // Update constraints safely on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             
-            // Center title vertically
-            titleLabel.snp.updateConstraints { make in
-                make.top.equalToSuperview().offset(Spacing.medium)
+            if let subtitle = subtitle, !subtitle.isEmpty {
+                // Update title constraint for multiline layout
+                self.titleLabel.snp.makeConstraints { make in
+                    make.left.equalToSuperview().offset(Spacing.medium)
+                    make.top.equalToSuperview().offset(Spacing.small)
+                    make.right.equalTo(self.toggleSwitch.snp.left).offset(-Spacing.small)
+                }
+            } else {
+                // Center title vertically
+                self.titleLabel.snp.makeConstraints { make in
+                    make.left.equalToSuperview().offset(Spacing.medium)
+                    make.centerY.equalToSuperview()
+                    make.right.equalTo(self.toggleSwitch.snp.left).offset(-Spacing.small)
+                }
             }
         }
     }

@@ -1,6 +1,7 @@
 import UIKit
 import SnapKit
 import AVFoundation
+import WebRTC
 
 class CallViewController: UIViewController {
     
@@ -63,6 +64,24 @@ class CallViewController: UIViewController {
         label.textColor = .koemoSecondaryText
         label.textAlignment = .center
         return label
+    }()
+    
+    // Audio level indicators
+    private lazy var audioLevelsView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .koemoSecondaryBackground
+        view.layer.cornerRadius = CornerRadius.medium
+        return view
+    }()
+    
+    private lazy var localAudioLevelView: AudioLevelIndicator = {
+        let indicator = AudioLevelIndicator(title: "あなた")
+        return indicator
+    }()
+    
+    private lazy var remoteAudioLevelView: AudioLevelIndicator = {
+        let indicator = AudioLevelIndicator(title: "相手")
+        return indicator
     }()
     
     // Control buttons
@@ -132,6 +151,25 @@ class CallViewController: UIViewController {
     private var callId: String?
     private var isMuted: Bool = false
     private var isSpeakerOn: Bool = false
+    private var audioLevelTimer: Timer?
+    
+    // MARK: - Initialization
+    
+    init(callId: String, partner: UserProfile, isInitiator: Bool = false) {
+        self.callId = callId
+        self.partnerProfile = partner
+        super.init(nibName: nil, bundle: nil)
+        
+        // Initialize WebRTC connection
+        print("Initializing WebRTC for call: \(callId) with \(partner.nickname)")
+        
+        // Set WebRTCService delegate
+        WebRTCService.shared.delegate = self
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     // MARK: - Lifecycle
     
@@ -157,6 +195,7 @@ class CallViewController: UIViewController {
         backgroundView.addSubview(headerView)
         backgroundView.addSubview(partnerProfileView)
         backgroundView.addSubview(profileDisclosureIndicator)
+        backgroundView.addSubview(audioLevelsView)
         backgroundView.addSubview(controlsContainerView)
         
         // Setup header
@@ -166,6 +205,10 @@ class CallViewController: UIViewController {
         // Setup disclosure indicator
         profileDisclosureIndicator.addSubview(disclosureProgressView)
         profileDisclosureIndicator.addSubview(disclosureLabel)
+        
+        // Setup audio levels
+        audioLevelsView.addSubview(localAudioLevelView)
+        audioLevelsView.addSubview(remoteAudioLevelView)
         
         // Setup controls
         controlsContainerView.addSubview(controlsStackView)
@@ -212,6 +255,24 @@ class CallViewController: UIViewController {
             make.height.equalTo(60)
         }
         
+        audioLevelsView.snp.makeConstraints { make in
+            make.top.equalTo(profileDisclosureIndicator.snp.bottom).offset(Spacing.medium)
+            make.left.right.equalToSuperview().inset(Spacing.large)
+            make.height.equalTo(80)
+        }
+        
+        localAudioLevelView.snp.makeConstraints { make in
+            make.left.equalToSuperview().offset(Spacing.medium)
+            make.top.bottom.equalToSuperview().inset(Spacing.small)
+            make.width.equalTo(120)
+        }
+        
+        remoteAudioLevelView.snp.makeConstraints { make in
+            make.right.equalToSuperview().offset(-Spacing.medium)
+            make.top.bottom.equalToSuperview().inset(Spacing.small)
+            make.width.equalTo(120)
+        }
+        
         disclosureProgressView.snp.makeConstraints { make in
             make.top.equalToSuperview().offset(Spacing.medium)
             make.left.right.equalToSuperview().inset(Spacing.medium)
@@ -224,9 +285,10 @@ class CallViewController: UIViewController {
         }
         
         controlsContainerView.snp.makeConstraints { make in
+            make.top.equalTo(audioLevelsView.snp.bottom).offset(Spacing.medium)
             make.bottom.equalTo(view.safeAreaLayoutGuide).offset(-Spacing.large)
             make.left.right.equalToSuperview()
-            make.height.equalTo(100)
+            make.height.greaterThanOrEqualTo(100)
         }
         
         controlsStackView.snp.makeConstraints { make in
@@ -277,19 +339,22 @@ class CallViewController: UIViewController {
         // Start timers
         startCallTimer()
         startDisclosureTimer()
+        startAudioLevelMonitoring()
         
-        // TODO: Initialize WebRTC connection
-        // For now, simulate successful connection
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.callStatusLabel.text = "通話中"
-            self.callStatusLabel.textColor = .koemoGreen
-        }
+        // Update call status
+        callStatusLabel.text = "接続中..."
+        callStatusLabel.textColor = .koemoSecondaryText
+        
+        // WebRTC connection should already be initialized from HomeViewController
+        // Just wait for connection status updates via delegate
+        print("📞 CallViewController ready - waiting for WebRTC connection status")
     }
     
     private func endCall() {
         stopAllTimers()
         
-        // TODO: End WebRTC connection
+        // End WebRTC connection
+        WebRTCService.shared.disconnect()
         
         // Notify call ended
         NotificationCenter.default.post(
@@ -301,6 +366,9 @@ class CallViewController: UIViewController {
                 "partnerProfile": partnerProfile as Any
             ]
         )
+        
+        // Dismiss call interface
+        dismiss(animated: true)
     }
     
     // MARK: - Timer Management
@@ -323,6 +391,9 @@ class CallViewController: UIViewController {
         
         disclosureTimer?.invalidate()
         disclosureTimer = nil
+        
+        audioLevelTimer?.invalidate()
+        audioLevelTimer = nil
     }
     
     private func updateCallDuration() {
@@ -394,6 +465,42 @@ class CallViewController: UIViewController {
         disclosureProgressView.setProgress(progress, animated: true)
     }
     
+    // MARK: - Audio Level Monitoring
+    
+    private func startAudioLevelMonitoring() {
+        audioLevelTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            self.updateAudioLevels()
+        }
+    }
+    
+    private func updateAudioLevels() {
+        // Get actual local audio level from WebRTC
+        if let localLevel = WebRTCService.shared.getLocalAudioLevel() {
+            // Use actual WebRTC audio level
+            localAudioLevelView.setLevel(localLevel)
+        } else if callStatusLabel.text == "通話中" {
+            // Only simulate if we're actually in a call but WebRTC levels aren't available yet
+            let localLevel = isMuted ? 0.0 : Float.random(in: 0.1...0.8)
+            localAudioLevelView.setLevel(localLevel)
+        } else {
+            // Not in call yet, show zero level
+            localAudioLevelView.setLevel(0.0)
+        }
+        
+        // Get actual remote audio level from WebRTC
+        if let remoteLevel = WebRTCService.shared.getRemoteAudioLevel() {
+            // Use actual WebRTC audio level
+            remoteAudioLevelView.setLevel(remoteLevel)
+        } else if callStatusLabel.text == "通話中" {
+            // Only simulate if we're actually in a call but WebRTC levels aren't available yet
+            let remoteLevel = Float.random(in: 0.0...0.6)
+            remoteAudioLevelView.setLevel(remoteLevel)
+        } else {
+            // Not in call yet, show zero level
+            remoteAudioLevelView.setLevel(0.0)
+        }
+    }
+    
     // MARK: - Audio Management
     
     private func configureAudioSession() {
@@ -412,21 +519,18 @@ class CallViewController: UIViewController {
         isMuted.toggle()
         updateMuteButton()
         
-        // TODO: Mute/unmute WebRTC audio
-        print("Mute toggled: \(isMuted)")
+        // Mute/unmute WebRTC audio
+        WebRTCService.shared.setMicrophoneMuted(isMuted)
+        print("Microphone \(isMuted ? "muted" : "unmuted")")
     }
     
     @objc private func speakerButtonTapped() {
         isSpeakerOn.toggle()
         updateSpeakerButton()
         
-        // Update audio route
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.overrideOutputAudioPort(isSpeakerOn ? .speaker : .none)
-        } catch {
-            print("Failed to toggle speaker: \(error)")
-        }
+        // Update audio route through WebRTC
+        WebRTCService.shared.setSpeakerEnabled(isSpeakerOn)
+        print("Speaker \(isSpeakerOn ? "enabled" : "disabled")")
     }
     
     @objc private func reportButtonTapped() {
@@ -489,6 +593,98 @@ class CallViewController: UIViewController {
         let alert = UIAlertController(title: "通報完了", message: "通報を受け付けました。\n24時間以内に確認いたします。", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+}
+
+// MARK: - WebRTCServiceDelegate
+
+extension CallViewController: WebRTCServiceDelegate {
+    func webRTCDidReceiveRemoteAudioTrack(_ audioTrack: RTCAudioTrack) {
+        print("✅ Received remote audio track - audio should now be playing")
+        
+        DispatchQueue.main.async {
+            // Update UI to indicate audio is flowing
+            self.callStatusLabel.text = "通話中"
+            self.callStatusLabel.textColor = .koemoGreen
+            
+            // Ensure audio levels are being monitored
+            if self.audioLevelTimer == nil {
+                self.startAudioLevelMonitoring()
+            }
+        }
+    }
+    
+    func webRTCDidReceiveError(_ error: String) {
+        callDidFail(error: error)
+    }
+    
+    func webRTCDidGenerateIceCandidate(_ candidate: RTCIceCandidate) {
+        print("🧊 Generated ICE candidate (STUBBED)")
+        // TODO: Send ICE candidate to signaling server
+    }
+    
+    func webRTCDidConnect() {
+        DispatchQueue.main.async {
+            self.callStatusLabel.text = "通話中"
+            self.callStatusLabel.textColor = .koemoGreen
+            
+            // Ensure profile view shows partner info
+            if let partner = self.partnerProfile {
+                self.partnerProfileView.configure(with: partner)
+            }
+            
+            // Start audio level monitoring if not already started
+            if self.audioLevelTimer == nil {
+                self.startAudioLevelMonitoring()
+            }
+            
+            print("🎉 WebRTC connection established - voice call active")
+        }
+    }
+    
+    func webRTCDidDisconnect() {
+        DispatchQueue.main.async {
+            self.callStatusLabel.text = "通話終了"
+            self.callStatusLabel.textColor = .koemoSecondaryText
+            
+            // Stop audio level monitoring
+            self.stopAllTimers()
+            
+            // Reset audio levels
+            self.localAudioLevelView.setLevel(0.0)
+            self.remoteAudioLevelView.setLevel(0.0)
+            
+            // Show call ended and dismiss
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.dismiss(animated: true)
+            }
+        }
+    }
+    
+    // Helper method for error handling
+    private func callDidFail(error: String) {
+        callStatusLabel.text = "接続エラー"
+        callStatusLabel.textColor = .systemRed
+        
+        // Ensure view is loaded and in window hierarchy before presenting alert
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Check if we can present an alert
+            if self.view.window != nil {
+                let alert = UIAlertController(
+                    title: "通話エラー",
+                    message: error,
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+                    self.dismiss(animated: true)
+                })
+                self.present(alert, animated: true)
+            } else {
+                // If we can't present alert, just dismiss
+                print("❌ Cannot present alert - view not in window hierarchy")
+                self.dismiss(animated: true)
+            }
+        }
     }
 }
 
@@ -576,6 +772,77 @@ class CallControlButton: UIButton {
             backgroundColor = .koemoBlue
             tintColor = .white
             setTitleColor(.white, for: .normal)
+        }
+    }
+}
+
+// MARK: - Audio Level Indicator
+
+class AudioLevelIndicator: UIView {
+    
+    private let titleLabel: UILabel
+    private let levelBars: [UIView]
+    private let numberOfBars = 5
+    
+    init(title: String) {
+        titleLabel = UILabel()
+        levelBars = (0..<5).map { _ in UIView() }
+        
+        super.init(frame: .zero)
+        
+        titleLabel.text = title
+        titleLabel.font = .koemoCaption2
+        titleLabel.textColor = .koemoSecondaryText
+        titleLabel.textAlignment = .center
+        
+        setupUI()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    private func setupUI() {
+        addSubview(titleLabel)
+        
+        let barsContainer = UIStackView(arrangedSubviews: levelBars)
+        barsContainer.axis = .horizontal
+        barsContainer.distribution = .fillEqually
+        barsContainer.spacing = 2
+        
+        addSubview(barsContainer)
+        
+        titleLabel.snp.makeConstraints { make in
+            make.top.equalToSuperview()
+            make.left.right.equalToSuperview()
+            make.height.equalTo(16)
+        }
+        
+        barsContainer.snp.makeConstraints { make in
+            make.top.equalTo(titleLabel.snp.bottom).offset(4)
+            make.left.right.equalToSuperview()
+            make.bottom.equalToSuperview()
+        }
+        
+        // Setup bars
+        levelBars.enumerated().forEach { index, bar in
+            bar.backgroundColor = .koemoTertiaryBackground
+            bar.layer.cornerRadius = 1
+            
+            bar.snp.makeConstraints { make in
+                make.height.equalTo(20 + index * 4) // Graduated heights
+            }
+        }
+    }
+    
+    func setLevel(_ level: Float) {
+        let activeBars = Int(level * Float(numberOfBars))
+        
+        levelBars.enumerated().forEach { index, bar in
+            let isActive = index < activeBars
+            UIView.animate(withDuration: 0.1) {
+                bar.backgroundColor = isActive ? .koemoGreen : .koemoTertiaryBackground
+            }
         }
     }
 }

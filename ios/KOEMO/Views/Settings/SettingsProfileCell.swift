@@ -114,29 +114,34 @@ class SettingsProfileCell: UITableViewCell {
     // MARK: - Configuration
     
     func configure(with profile: UserProfile?) {
-        guard let profile = profile else {
-            nicknameLabel.text = "プロフィール未設定"
-            detailsLabel.text = "タップして設定してください"
-            profileIconLabel.text = "👤"
-            return
+        // Update UI safely on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            guard let profile = profile else {
+                self.nicknameLabel.text = "プロフィール未設定"
+                self.detailsLabel.text = "タップして設定してください"
+                self.profileIconLabel.text = "👤"
+                return
+            }
+            
+            self.nicknameLabel.text = profile.nickname
+            
+            // Profile icon based on gender
+            self.profileIconLabel.text = profile.gender == .male ? "👨" : "👩"
+            
+            // Details
+            var details: [String] = []
+            if let age = profile.age {
+                details.append("\(age)歳")
+            }
+            details.append(profile.gender.displayName)
+            if let region = profile.region {
+                details.append(region)
+            }
+            
+            self.detailsLabel.text = details.joined(separator: " • ")
         }
-        
-        nicknameLabel.text = profile.nickname
-        
-        // Profile icon based on gender
-        profileIconLabel.text = profile.gender == .male ? "👨" : "👩"
-        
-        // Details
-        var details: [String] = []
-        if let age = profile.age {
-            details.append("\(age)歳")
-        }
-        details.append(profile.gender.displayName)
-        if let region = profile.region {
-            details.append(region)
-        }
-        
-        detailsLabel.text = details.joined(separator: " • ")
     }
     
     // MARK: - Animation

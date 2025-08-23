@@ -241,7 +241,9 @@ extension HistoryViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if currentMode == .calls {
             if callHistory.isEmpty {
-                let cell = tableView.dequeueReusableCell(withIdentifier: "EmptyStateCell", for: indexPath) as! EmptyStateCell
+                guard let cell = tableView.dequeueReusableCell(withIdentifier: "EmptyStateCell", for: indexPath) as? EmptyStateCell else {
+                    return UITableViewCell()
+                }
                 cell.configure(
                     title: "通話履歴がありません",
                     message: "誰かと通話すると履歴が表示されます",
@@ -249,13 +251,17 @@ extension HistoryViewController: UITableViewDataSource {
                 )
                 return cell
             } else {
-                let cell = tableView.dequeueReusableCell(withIdentifier: "CallHistoryCell", for: indexPath) as! CallHistoryCell
+                guard let cell = tableView.dequeueReusableCell(withIdentifier: "CallHistoryCell", for: indexPath) as? CallHistoryCell else {
+                    return UITableViewCell()
+                }
                 cell.configure(with: callHistory[indexPath.row])
                 return cell
             }
         } else {
             if chatHistory.isEmpty {
-                let cell = tableView.dequeueReusableCell(withIdentifier: "EmptyStateCell", for: indexPath) as! EmptyStateCell
+                guard let cell = tableView.dequeueReusableCell(withIdentifier: "EmptyStateCell", for: indexPath) as? EmptyStateCell else {
+                    return UITableViewCell()
+                }
                 cell.configure(
                     title: "チャット履歴がありません",
                     message: "通話中にメッセージを送ると履歴が表示されます",
@@ -263,7 +269,9 @@ extension HistoryViewController: UITableViewDataSource {
                 )
                 return cell
             } else {
-                let cell = tableView.dequeueReusableCell(withIdentifier: "ChatHistoryCell", for: indexPath) as! ChatHistoryCell
+                guard let cell = tableView.dequeueReusableCell(withIdentifier: "ChatHistoryCell", for: indexPath) as? ChatHistoryCell else {
+                    return UITableViewCell()
+                }
                 cell.configure(with: chatHistory[indexPath.row])
                 return cell
             }

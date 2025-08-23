@@ -51,6 +51,7 @@ extension UIFont {
 // MARK: - Spacing
 
 struct Spacing {
+    static let extraSmall: CGFloat = 2
     static let tiny: CGFloat = 4
     static let small: CGFloat = 8
     static let medium: CGFloat = 16

@@ -1,4 +1,5 @@
 import UIKit
+import Network
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
@@ -9,14 +10,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         window = UIWindow(windowScene: windowScene)
         
-        // Check if user is authenticated
-        let isAuthenticated = UserDefaults.standard.bool(forKey: "user_authenticated")
+        // Trigger Local Network Permission early (for iOS 14+)
+        triggerLocalNetworkPermission()
         
-        if isAuthenticated {
-            // Show main tab bar controller
+        // Check if user is already registered
+        if UserDefaults.standard.string(forKey: "user_id") != nil {
+            // User exists, go to main interface
             setupMainInterface()
         } else {
-            // Show onboarding/registration
+            // New user, show onboarding
             setupOnboardingInterface()
         }
         
@@ -58,5 +60,48 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     func switchToMainInterface() {
         setupMainInterface()
+    }
+    
+    func switchToOnboarding() {
+        setupOnboardingInterface()
+    }
+    
+    // MARK: - Local Network Permission Trigger
+    
+    private func triggerLocalNetworkPermission() {
+        print("🌐 Triggering Local Network Permission...")
+        
+        // Method 1: Bonjour Browser to trigger permission dialog
+        let parameters = NWParameters()
+        parameters.allowLocalEndpointReuse = true
+        parameters.includePeerToPeer = true
+        
+        let browserDescriptor = NWBrowser.Descriptor.bonjour(type: "_http._tcp", domain: "local.")
+        let browser = NWBrowser(for: browserDescriptor, using: parameters)
+        
+        browser.stateUpdateHandler = { state in
+            print("🌐 Browser state: \(state)")
+            switch state {
+            case .ready:
+                print("✅ Local Network Browser ready - permission likely granted")
+                browser.cancel()
+            case .failed(let error):
+                print("❌ Local Network Browser failed: \(error)")
+                browser.cancel()
+            default:
+                break
+            }
+        }
+        
+        browser.browseResultsChangedHandler = { results, changes in
+            print("🌐 Found \(results.count) local services")
+        }
+        
+        browser.start(queue: DispatchQueue.main)
+        
+        // Auto cleanup after 5 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            browser.cancel()
+        }
     }
 }

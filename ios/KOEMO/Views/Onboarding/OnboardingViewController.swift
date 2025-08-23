@@ -1,5 +1,7 @@
 import UIKit
 import SnapKit
+import Alamofire
+import Network
 
 class OnboardingViewController: UIViewController {
     
@@ -241,19 +243,387 @@ class OnboardingViewController: UIViewController {
     // MARK: - Actions
     
     @objc private func startButtonTapped() {
-        guard validateInput() else { return }
+        print("🚀🚀🚀 START BUTTON TAPPED - BEGIN REGISTRATION PROCESS 🚀🚀🚀")
+        
+        guard validateInput() else { 
+            print("❌ Validation failed - stopping registration")
+            return 
+        }
         
         startButton.setLoading(true)
         
+        // iOS 14+ Local Network Permission を事前に要求
+        print("🌐 Requesting Local Network Permission...")
+        requestLocalNetworkPermission { [weak self] granted in
+            print("🌐 Local Network Permission result: \(granted)")
+            if granted {
+                print("✅ Local Network Permission granted - proceeding with registration")
+                self?.proceedWithRegistration()
+            } else {
+                print("❌ Local Network Permission denied - showing instructions")
+                self?.showLocalNetworkPermissionAlert()
+            }
+        }
+    }
+    
+    private func proceedWithRegistration() {
         // Create user profile
         let profile = createUserProfile()
         
-        // TODO: Send registration request to backend
-        // For now, simulate success after delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.startButton.setLoading(false)
-            self.completeOnboarding()
+        // Register user with API
+        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        
+        print("📡 Starting API registration...")
+        print("Device ID: \(deviceId)")
+        print("Profile: \(profile)")
+        print("🌍 Will attempt to connect to: http://192.168.0.8:3000/api/register")
+        
+        registerWithAPI(deviceId: deviceId, profile: profile)
+    }
+    
+    private func showLocalNetworkPermissionAlert() {
+        startButton.setLoading(false)
+        
+        let instructions = """
+        ローカルネットワーク許可が必要です:
+        
+        1. 設定アプリを開く
+        2. プライバシーとセキュリティ
+        3. ローカルネットワーク
+        4. KOEMO をオンにする
+        
+        または、アプリを再起動して許可ダイアログを表示してください。
+        """
+        
+        let alert = UIAlertController(
+            title: "ローカルネットワーク許可が必要",
+            message: instructions,
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "設定を開く", style: .default) { _ in
+            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(settingsURL)
+            }
+        })
+        
+        alert.addAction(UIAlertAction(title: "再試行", style: .default) { _ in
+            self.startButtonTapped()
+        })
+        
+        alert.addAction(UIAlertAction(title: "オフライン続行", style: .cancel) { _ in
+            self.proceedWithRegistration()
+        })
+        
+        present(alert, animated: true)
+    }
+    
+    // MARK: - Local Network Permission
+    
+    private func requestLocalNetworkPermission(completion: @escaping (Bool) -> Void) {
+        print("🌐 Requesting Local Network Permission...")
+        
+        let parameters = NWParameters()
+        parameters.allowLocalEndpointReuse = true
+        parameters.includePeerToPeer = true
+        
+        let browserDescriptor = NWBrowser.Descriptor.bonjour(type: "_http._tcp", domain: "local.")
+        let browser = NWBrowser(for: browserDescriptor, using: parameters)
+        
+        var hasCompleted = false
+        
+        browser.stateUpdateHandler = { state in
+            if hasCompleted { return }
+            
+            print("🌐 Browser state: \(state)")
+            switch state {
+            case .ready:
+                print("✅ Local Network Browser ready - permission likely granted")
+                hasCompleted = true
+                browser.cancel()
+                DispatchQueue.main.async {
+                    completion(true)
+                }
+            case .failed(let error):
+                print("❌ Local Network Browser failed: \(error)")
+                hasCompleted = true
+                browser.cancel()
+                DispatchQueue.main.async {
+                    completion(false)
+                }
+            default:
+                break
+            }
         }
+        
+        browser.browseResultsChangedHandler = { results, changes in
+            print("🌐 Found \(results.count) local services")
+        }
+        
+        browser.start(queue: DispatchQueue.main)
+        
+        // タイムアウト処理
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            if !hasCompleted {
+                print("⏰ Browser timeout - assuming permission denied")
+                hasCompleted = true
+                browser.cancel()
+                completion(false)
+            }
+        }
+    }
+    
+    // MARK: - Network Diagnostics
+    
+    private func testWithURLSession(deviceId: String, profile: UserProfile) {
+        print("🔬 Testing with URLSession directly...")
+        
+        guard let url = URL(string: "http://192.168.0.8:3000/api/register") else {
+            print("🔬 Invalid URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
+        
+        let requestData: [String: Any] = [
+            "deviceId": deviceId,
+            "nickname": profile.nickname,
+            "gender": profile.gender.rawValue,
+            "age": profile.age as Any,
+            "region": profile.region as Any
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestData)
+            print("🔬 URLSession request created with body: \(requestData)")
+        } catch {
+            print("🔬 Failed to serialize JSON: \(error)")
+            return
+        }
+        
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            print("🔬 URLSession response received!")
+            
+            if let error = error {
+                print("🔬 URLSession error: \(error)")
+                if let urlError = error as? URLError {
+                    print("🔬 URLError code: \(urlError.code)")
+                }
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("🔬 URLSession status: \(httpResponse.statusCode)")
+                print("🔬 URLSession headers: \(httpResponse.allHeaderFields)")
+            }
+            
+            if let data = data, let responseString = String(data: data, encoding: .utf8) {
+                print("🔬 URLSession response data: \(responseString)")
+            }
+        }
+        
+        print("🔬 Starting URLSession task...")
+        task.resume()
+    }
+    
+    private func checkWiFiConnectivity() -> String {
+        let reachability = NetworkReachabilityManager()
+        guard let isReachable = reachability?.isReachable else {
+            return "Unknown"
+        }
+        
+        if isReachable {
+            if reachability?.isReachableOnCellular == true {
+                return "Cellular"
+            } else if reachability?.isReachableOnEthernetOrWiFi == true {
+                return "WiFi/Ethernet"
+            } else {
+                return "Connected (Unknown Type)"
+            }
+        } else {
+            return "Not Connected"
+        }
+    }
+    
+    // MARK: - API Registration
+    
+    private func registerWithAPI(deviceId: String, profile: UserProfile) {
+        let baseURL = "http://192.168.0.8:3000/api"
+        
+        // Basic network check
+        print("🌐 Starting network test...")
+        print("🌐 Device network info:")
+        print("   WiFi accessible: \(checkWiFiConnectivity())")
+        
+        // First, try a simple connectivity test
+        print("🏥 Attempting health check to: http://192.168.0.8:3000/health")
+        AF.request("http://192.168.0.8:3000/health")
+            .response { response in
+                print("🏥 Health check complete!")
+                print("🏥 Response: \(response.response?.statusCode ?? -1)")
+                print("🏥 Data: \(response.data?.count ?? 0) bytes")
+                if let error = response.error {
+                    print("🏥 Health check error: \(error)")
+                    print("🏥 Error localized: \(error.localizedDescription)")
+                    if let afError = error as? AFError {
+                        print("🏥 AFError details: \(afError)")
+                    }
+                } else {
+                    print("🏥 Health check SUCCESS - network is working!")
+                }
+            }
+        
+        let parameters: [String: Any] = [
+            "deviceId": deviceId,
+            "nickname": profile.nickname,
+            "gender": profile.gender.rawValue,
+            "age": profile.age as Any,
+            "region": profile.region as Any
+        ]
+        
+        print("📡 Attempting API registration to: \(baseURL)/register")
+        print("📝 Parameters: \(parameters)")
+        print("📱 Device info: \(UIDevice.current.name) - \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)")
+        
+        print("📡 Creating Alamofire request...")
+        print("📡 URL: \(baseURL)/register")
+        print("📡 Method: POST")
+        print("📡 Parameters: \(parameters)")
+        print("📡 Headers will include: Content-Type: application/json")
+        
+        // Create session with timeout
+        let session = Session.default
+        session.sessionConfiguration.timeoutIntervalForRequest = 30
+        session.sessionConfiguration.timeoutIntervalForResource = 60
+        
+        print("📡 Session timeout configured: 30s request, 60s resource")
+        
+        let request = session.request("\(baseURL)/register",
+                   method: .post,
+                   parameters: parameters,
+                   encoding: JSONEncoding.default)
+            .validate()
+        
+        print("📡 Request created, sending...")
+        print("📡 Request object: \(request)")
+        
+        // Add request interceptor for debugging
+        request.cURLDescription { curl in
+            print("📡 cURL equivalent: \(curl)")
+        }
+        
+        // Add a timeout fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            print("⏰ 15 second timeout reached - checking if request completed")
+        }
+        
+        request.responseDecodable(of: AuthenticationResponse.self) { [weak self] response in
+                print("📨📨📨 RESPONSE RECEIVED 📨📨📨")
+                print("📨 Response status code: \(response.response?.statusCode ?? -1)")
+                print("📨 Response headers: \(response.response?.allHeaderFields ?? [:])")
+                
+                // Print request details for debugging
+                if let request = response.request {
+                    print("📨 Actual request URL: \(request.url?.absoluteString ?? "nil")")
+                    print("📨 Request method: \(request.httpMethod ?? "nil")")
+                    print("📨 Request headers: \(request.allHTTPHeaderFields ?? [:])")
+                }
+                
+                // Print raw response data for debugging
+                if let data = response.data, let rawResponse = String(data: data, encoding: .utf8) {
+                    print("📨 Raw response: \(rawResponse)")
+                } else {
+                    print("📨 No response data received")
+                }
+                
+                // Print detailed error information
+                if let error = response.error {
+                    print("📨 Error details:")
+                    print("   Domain: \(error.localizedDescription)")
+                    if let afError = error as? AFError {
+                        print("   AFError: \(afError)")
+                        print("   Underlying error: \(afError.underlyingError?.localizedDescription ?? "none")")
+                    }
+                    if let urlError = error as? URLError {
+                        print("   URLError code: \(urlError.code)")
+                        print("   URLError description: \(urlError.localizedDescription)")
+                    }
+                }
+                
+                DispatchQueue.main.async {
+                    self?.startButton.setLoading(false)
+                    
+                    switch response.result {
+                    case .success(let authResponse):
+                        if authResponse.success {
+                            print("✅ API Registration successful: \(authResponse)")
+                            // Save user data to UserDefaults
+                            if let userData = authResponse.data {
+                                UserDefaults.standard.set(userData.userId, forKey: "user_id")
+                            }
+                            self?.saveProfileToUserDefaults(profile: profile)
+                            self?.completeOnboarding()
+                        } else {
+                            print("❌ API Registration failed: \(authResponse)")
+                            self?.showAlert(message: "登録に失敗しました。もう一度お試しください。")
+                        }
+                    case .failure(let error):
+                        print("❌ API Registration error: \(error)")
+                        print("❌ Error description: \(error.localizedDescription)")
+                        
+                        if let afError = error as? AFError {
+                            print("❌ AFError: \(afError)")
+                            if case .responseValidationFailed(let reason) = afError {
+                                print("❌ Validation failed reason: \(reason)")
+                            }
+                        }
+                        
+                        // Fallback to local storage on network error
+                        self?.handleAPIFailure(deviceId: deviceId, profile: profile)
+                    }
+                }
+            }
+    }
+    
+    private func handleAPIFailure(deviceId: String, profile: UserProfile) {
+        print("🔄🔄🔄 API FAILED - ENTERING OFFLINE MODE 🔄🔄🔄")
+        print("🔄 This means the network request to server failed")
+        print("🔄 Device ID: \(deviceId)")
+        print("🔄 Profile: \(profile)")
+        
+        let testUserId = "offline_user_" + deviceId.prefix(8)
+        UserDefaults.standard.set(testUserId, forKey: "user_id")
+        saveProfileToUserDefaults(profile: profile)
+        
+        // Show warning but continue
+        let alert = UIAlertController(
+            title: "オフラインモード",
+            message: "ネットワーク接続がないため、オフラインで登録しました。詳細はXcodeコンソールを確認してください。",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            self.completeOnboarding()
+        })
+        present(alert, animated: true)
+    }
+    
+    private func saveProfileToUserDefaults(profile: UserProfile) {
+        UserDefaults.standard.set(profile.nickname, forKey: "user_nickname")
+        UserDefaults.standard.set(profile.gender.rawValue, forKey: "user_gender")
+        if let age = profile.age {
+            UserDefaults.standard.set(age, forKey: "user_age")
+        }
+        if let region = profile.region {
+            UserDefaults.standard.set(region, forKey: "user_region")
+        }
+        
+        print("💾 Saved complete profile to UserDefaults:")
+        print("   Nickname: \(profile.nickname)")
+        print("   Gender: \(profile.gender.rawValue)")
+        print("   Age: \(profile.age ?? 0)")
+        print("   Region: \(profile.region ?? "未設定")")
     }
     
     private func validateInput() -> Bool {
@@ -291,12 +661,25 @@ class OnboardingViewController: UIViewController {
     }
     
     private func completeOnboarding() {
-        // Mark user as authenticated
-        UserDefaults.standard.set(true, forKey: "user_authenticated")
+        // Mark onboarding as completed
+        // TODO: Re-enable AuthService when available
+        // AuthService.shared.completeOnboarding()
+        
+        print("✅ Registration successful - switching to main interface")
         
         // Switch to main interface
         if let sceneDelegate = view.window?.windowScene?.delegate as? SceneDelegate {
             sceneDelegate.switchToMainInterface()
+        } else {
+            print("❌ SceneDelegate not found - cannot switch interface")
+            // Fallback: show success message
+            let alert = UIAlertController(
+                title: "✅ 登録成功",
+                message: "登録が完了しました。",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
         }
     }
     

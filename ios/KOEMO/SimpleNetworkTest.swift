@@ -163,7 +163,6 @@ class SimpleNetworkTest {
                     print("❌ Description: \(error.localizedDescription)")
                     if let afError = error as? AFError {
                         print("❌ AFError: \(afError)")
-                        print("❌ Is timeout: \(afError.isTimeoutError)")
                     }
                 }
                 

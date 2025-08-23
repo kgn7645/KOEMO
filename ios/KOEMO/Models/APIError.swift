@@ -12,6 +12,7 @@ struct APIError: Codable, Error {
     }
     
     // Common error codes
+    static let unauthorized = APIError(code: "UNAUTHORIZED", message: "認証が必要です", details: nil)
     static let authInvalidToken = APIError(code: "AUTH_INVALID_TOKEN", message: "認証トークンが無効です", details: nil)
     static let authExpiredToken = APIError(code: "AUTH_EXPIRED_TOKEN", message: "認証トークンの有効期限が切れています", details: nil)
     static let userNotFound = APIError(code: "USER_NOT_FOUND", message: "ユーザーが見つかりません", details: nil)

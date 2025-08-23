@@ -343,14 +343,18 @@ extension ChatDetailViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if indexPath.row == 0 {
             // Call info cell
-            let cell = tableView.dequeueReusableCell(withIdentifier: "ChatCallInfoCell", for: indexPath) as! ChatCallInfoCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "ChatCallInfoCell", for: indexPath) as? ChatCallInfoCell else {
+                return UITableViewCell()
+            }
             if let callInfo = callInfo {
                 cell.configure(with: callInfo, partnerName: partnerNickname)
             }
             return cell
         } else {
             // Message cell
-            let cell = tableView.dequeueReusableCell(withIdentifier: "ChatMessageCell", for: indexPath) as! ChatMessageCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "ChatMessageCell", for: indexPath) as? ChatMessageCell else {
+                return UITableViewCell()
+            }
             let message = messages[indexPath.row - 1]
             cell.configure(with: message)
             return cell

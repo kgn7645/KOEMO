@@ -162,10 +162,10 @@ class MainTabBarController: UITabBarController {
         }
         
         // Create new call view controller
-        let callVC = CallViewController()
-        callVC.configure(with: callInfo)
-        callVC.modalPresentationStyle = .fullScreen
-        callVC.modalTransitionStyle = .crossDissolve
+        let mockPartner = UserProfile(nickname: "テストユーザー", gender: .female, age: 25, region: "東京")
+        let callVC = CallViewController(callId: "mock-call-id", partner: mockPartner, isInitiator: true)
+        callVC.modalPresentationStyle = UIModalPresentationStyle.fullScreen
+        callVC.modalTransitionStyle = UIModalTransitionStyle.crossDissolve
         
         // Present call interface
         present(callVC, animated: true) {

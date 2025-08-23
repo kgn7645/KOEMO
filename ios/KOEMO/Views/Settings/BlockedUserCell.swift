@@ -165,10 +165,11 @@ class BlockedUserCell: UITableViewCell {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        let calendar = Calendar.current
         
-        if Calendar.current.isToday(date) {
+        if calendar.isDate(date, inSameDayAs: Date()) {
             return "今日"
-        } else if Calendar.current.isYesterday(date) {
+        } else if calendar.isDate(date, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()) {
             return "昨日"
         } else {
             formatter.dateFormat = "MM/dd"

@@ -95,18 +95,8 @@ class SettingsMenuCell: UITableViewCell {
         if let subtitle = subtitle, !subtitle.isEmpty {
             subtitleLabel.text = subtitle
             subtitleLabel.isHidden = false
-            
-            // Update title constraint
-            titleLabel.snp.updateConstraints { make in
-                make.top.equalToSuperview().offset(Spacing.small)
-            }
         } else {
             subtitleLabel.isHidden = true
-            
-            // Center title vertically
-            titleLabel.snp.updateConstraints { make in
-                make.top.equalToSuperview().offset(Spacing.medium)
-            }
         }
         
         if let iconName = icon {
@@ -115,6 +105,35 @@ class SettingsMenuCell: UITableViewCell {
             iconImageView.tintColor = textColor ?? .koemoBlue
         } else {
             iconImageView.isHidden = true
+        }
+        
+        // Remove and recreate title constraints to avoid conflicts
+        titleLabel.snp.removeConstraints()
+        
+        // Update constraints safely on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            let leftAnchor = self.iconImageView.isHidden ? 
+                self.snp.left : self.iconImageView.snp.right
+            let leftOffset = self.iconImageView.isHidden ? 
+                Spacing.medium : Spacing.medium
+            
+            if let subtitle = subtitle, !subtitle.isEmpty {
+                // Update title constraint
+                self.titleLabel.snp.makeConstraints { make in
+                    make.left.equalTo(leftAnchor).offset(leftOffset)
+                    make.top.equalToSuperview().offset(Spacing.small)
+                    make.right.equalTo(self.chevronImageView.snp.left).offset(-Spacing.small)
+                }
+            } else {
+                // Center title vertically
+                self.titleLabel.snp.makeConstraints { make in
+                    make.left.equalTo(leftAnchor).offset(leftOffset)
+                    make.centerY.equalToSuperview()
+                    make.right.equalTo(self.chevronImageView.snp.left).offset(-Spacing.small)
+                }
+            }
         }
     }
     

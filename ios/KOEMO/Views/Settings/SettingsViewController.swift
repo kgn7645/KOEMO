@@ -11,6 +11,12 @@ class SettingsViewController: UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         
+        // Improve performance and stability
+        tableView.estimatedRowHeight = 60
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedSectionHeaderHeight = 30
+        tableView.estimatedSectionFooterHeight = 0
+        
         // Register cells
         tableView.register(SettingsProfileCell.self, forCellReuseIdentifier: "SettingsProfileCell")
         tableView.register(SettingsMenuCell.self, forCellReuseIdentifier: "SettingsMenuCell")
@@ -29,9 +35,16 @@ class SettingsViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupUI()
-        loadUserProfile()
-        setupSettingsData()
+        print("🔧 Settings: viewDidLoad started")
+        
+        do {
+            setupUI()
+            loadUserProfile()
+            setupSettingsData()
+            print("✅ Settings: viewDidLoad completed successfully")
+        } catch {
+            print("❌ Settings: Error in viewDidLoad: \(error)")
+        }
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -64,14 +77,27 @@ class SettingsViewController: UIViewController {
     // MARK: - Data Loading
     
     private func loadUserProfile() {
-        // TODO: Load real user profile from API
-        // For now, use mock data
+        // Load actual user profile from UserDefaults
+        let nickname = UserDefaults.standard.string(forKey: "user_nickname") ?? "未設定"
+        let genderString = UserDefaults.standard.string(forKey: "user_gender") ?? "male"
+        let age = UserDefaults.standard.object(forKey: "user_age") as? Int ?? 0
+        let region = UserDefaults.standard.string(forKey: "user_region")
+        
+        // Convert gender string to enum
+        let gender = UserProfile.Gender(rawValue: genderString) ?? .male
+        
         userProfile = UserProfile(
-            nickname: "テストユーザー",
-            gender: .female,
-            age: 25,
-            region: "東京都"
+            nickname: nickname,
+            gender: gender,
+            age: age > 0 ? age : nil,
+            region: region
         )
+        
+        print("📊 Loaded user profile from UserDefaults:")
+        print("   Nickname: \(nickname)")
+        print("   Gender: \(genderString)")
+        print("   Age: \(age)")
+        print("   Region: \(region ?? "未設定")")
     }
     
     private func setupSettingsData() {
@@ -213,12 +239,15 @@ class SettingsViewController: UIViewController {
             )
         ]
         
+        // Reload table view synchronously to prevent timing issues
         tableView.reloadData()
     }
     
     // MARK: - Public Methods
     
     func refreshSettings() {
+        // Only refresh if data hasn't been set yet
+        guard settingsData.isEmpty else { return }
         loadUserProfile()
         setupSettingsData()
     }
@@ -439,27 +468,46 @@ extension SettingsViewController: UITableViewDataSource {
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        // Bounds check
+        guard indexPath.section < settingsData.count,
+              indexPath.row < settingsData[indexPath.section].items.count else {
+            print("⚠️ Settings: Invalid indexPath \(indexPath)")
+            return UITableViewCell()
+        }
+        
         let section = settingsData[indexPath.section]
         let item = section.items[indexPath.row]
         
         switch item {
         case .profile(let profile):
-            let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsProfileCell", for: indexPath) as! SettingsProfileCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsProfileCell", for: indexPath) as? SettingsProfileCell else {
+                print("⚠️ Settings: Failed to dequeue SettingsProfileCell")
+                return UITableViewCell()
+            }
             cell.configure(with: profile)
             return cell
             
-        case .menu(let title, let subtitle, let icon, let textColor, let action):
-            let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsMenuCell", for: indexPath) as! SettingsMenuCell
+        case .menu(let title, let subtitle, let icon, let textColor, _):
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsMenuCell", for: indexPath) as? SettingsMenuCell else {
+                print("⚠️ Settings: Failed to dequeue SettingsMenuCell")
+                return UITableViewCell()
+            }
             cell.configure(title: title, subtitle: subtitle, icon: icon, textColor: textColor)
             return cell
             
         case .switch(let title, let subtitle, let isOn, let action):
-            let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsSwitchCell", for: indexPath) as! SettingsSwitchCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsSwitchCell", for: indexPath) as? SettingsSwitchCell else {
+                print("⚠️ Settings: Failed to dequeue SettingsSwitchCell")
+                return UITableViewCell()
+            }
             cell.configure(title: title, subtitle: subtitle, isOn: isOn, action: action)
             return cell
             
         case .value(let title, let value, let action):
-            let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsValueCell", for: indexPath) as! SettingsValueCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "SettingsValueCell", for: indexPath) as? SettingsValueCell else {
+                print("⚠️ Settings: Failed to dequeue SettingsValueCell")
+                return UITableViewCell()
+            }
             cell.configure(title: title, value: value, hasAction: action != nil)
             return cell
         }

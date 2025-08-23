@@ -22,8 +22,8 @@ target 'KOEMO' do
   # Keychain Services
   pod 'KeychainAccess', '~> 4.2'
   
-  # WebRTC for voice calls - using compatible library
-  pod 'WebRTC-lib', '~> 104.0'
+  # WebRTC for voice calls
+  pod 'WebRTC-lib'
   
   # Testing Dependencies
   # target 'KOEMOTests' do

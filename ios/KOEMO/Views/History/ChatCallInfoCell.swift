@@ -132,10 +132,11 @@ class ChatCallInfoCell: UITableViewCell {
     
     private func formatDateTime(_ date: Date) -> String {
         let formatter = DateFormatter()
+        let calendar = Calendar.current
         
-        if Calendar.current.isToday(date) {
+        if calendar.isDate(date, inSameDayAs: Date()) {
             formatter.dateFormat = "今日 HH:mm"
-        } else if Calendar.current.isYesterday(date) {
+        } else if calendar.isDate(date, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()) {
             formatter.dateFormat = "昨日 HH:mm"
         } else {
             formatter.dateFormat = "MM/dd HH:mm"

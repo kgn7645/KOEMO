@@ -21,6 +21,10 @@ class KoemoButton: UIButton {
     private var buttonSize: ButtonSize = .medium
     private var isLoading = false
     
+    // Constraint references for proper cleanup
+    private var heightConstraint: NSLayoutConstraint?
+    private var widthConstraint: NSLayoutConstraint?
+    
     private lazy var activityIndicator: UIActivityIndicatorView = {
         let indicator = UIActivityIndicatorView(style: .medium)
         indicator.hidesWhenStopped = true
@@ -61,21 +65,28 @@ class KoemoButton: UIButton {
         // Remove existing constraints if any
         translatesAutoresizingMaskIntoConstraints = false
         
+        // Remove previous size constraints
+        heightConstraint?.isActive = false
+        widthConstraint?.isActive = false
+        
         // Apply size constraints
         switch buttonSize {
         case .small:
-            heightAnchor.constraint(equalToConstant: 44).isActive = true
-            widthAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
+            heightConstraint = heightAnchor.constraint(equalToConstant: 44)
+            widthConstraint = widthAnchor.constraint(greaterThanOrEqualToConstant: 120)
         case .medium:
-            heightAnchor.constraint(equalToConstant: 48).isActive = true
-            widthAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
+            heightConstraint = heightAnchor.constraint(equalToConstant: 48)
+            widthConstraint = widthAnchor.constraint(greaterThanOrEqualToConstant: 160)
         case .large:
-            heightAnchor.constraint(equalToConstant: 56).isActive = true
-            widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
+            heightConstraint = heightAnchor.constraint(equalToConstant: 56)
+            widthConstraint = widthAnchor.constraint(greaterThanOrEqualToConstant: 200)
         case .call:
-            heightAnchor.constraint(equalToConstant: 120).isActive = true
-            widthAnchor.constraint(equalToConstant: 120).isActive = true
+            heightConstraint = heightAnchor.constraint(equalToConstant: 120)
+            widthConstraint = widthAnchor.constraint(equalToConstant: 120)
         }
+        
+        heightConstraint?.isActive = true
+        widthConstraint?.isActive = true
         
         // Apply visual style
         switch buttonStyle {

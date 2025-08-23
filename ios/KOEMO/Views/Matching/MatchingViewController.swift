@@ -1,5 +1,11 @@
 import UIKit
 import SnapKit
+import WebRTC
+
+protocol MatchingViewControllerDelegate: AnyObject {
+    func matchingDidCancel()
+    func matchingDidFindMatch(partner: UserProfile)
+}
 
 class MatchingViewController: UIViewController {
     
@@ -141,6 +147,8 @@ class MatchingViewController: UIViewController {
     private var countdownTimer: Timer?
     private var countdownSeconds: Int = 10
     private var foundPartner: UserProfile?
+    private var currentMatchId: String?
+    private var hasAcceptedMatch = false
     
     enum MatchingState {
         case searching
@@ -327,13 +335,17 @@ class MatchingViewController: UIViewController {
     // MARK: - Matching Process
     
     private func startMatchingProcess() {
-        // TODO: Send matching request to backend
-        // For now, simulate finding a match after random delay
-        let randomDelay = Double.random(in: 2.0...8.0)
-        
-        matchingTimer = Timer.scheduledTimer(withTimeInterval: randomDelay, repeats: false) { _ in
-            self.simulateMatchFound()
-        }
+        print("🎯 MatchingViewController: Real matching process via WebSocket")
+        // Real matching is handled via HomeViewController and WebSocket
+        // This view controller just shows the UI
+    }
+    
+    func setMatchInformation(partner: UserProfile, matchId: String) {
+        print("📝 Setting match information: \(partner.nickname), matchId: \(matchId)")
+        foundPartner = partner
+        currentMatchId = matchId
+        hasAcceptedMatch = false // リセット
+        currentState = .found
     }
     
     private func simulateMatchFound() {
@@ -421,11 +433,36 @@ class MatchingViewController: UIViewController {
     @objc private func acceptButtonTapped() {
         guard let partner = foundPartner else { return }
         
-        currentState = .confirmed
+        // 重複送信を防ぐ
+        if hasAcceptedMatch {
+            print("⚠️ Match already accepted, ignoring duplicate request")
+            return
+        }
         
-        // Simulate connection delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.delegate?.matchingDidFindMatch(partner: partner)
+        hasAcceptedMatch = true
+        currentState = .confirmed
+        stopAllTimers()
+        
+        print("✅ User accepted match, sending accept-match message...")
+        
+        // Send accept-match message to backend
+        let acceptMessage: [String: Any] = [
+            "type": "accept-match",
+            "matchId": currentMatchId ?? "unknown_match"
+        ]
+        
+        WebSocketService.shared.sendMessage(acceptMessage)
+        
+        // Update UI to show connecting state
+        updateUIForConnecting()
+        
+        // Start connection timeout (30 seconds)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) {
+            if self.currentState == .confirmed {
+                // Connection timeout
+                print("❌ WebRTC connection timeout")
+                self.handleConnectionError("接続がタイムアウトしました")
+            }
         }
     }
     
@@ -439,5 +476,105 @@ class MatchingViewController: UIViewController {
         countdownTimer = nil
         
         stopMatchingAnimation()
+    }
+    
+    private func updateUIForConnecting() {
+        DispatchQueue.main.async {
+            self.matchTitleLabel.text = "接続中..."
+            self.confirmationLabel.text = "音声通話に接続しています"
+            self.countdownLabel.text = ""
+            
+            // Hide action buttons during connection
+            self.actionButtonsStackView.isHidden = true
+            
+            // Show loading animation
+            self.startConnectingAnimation()
+        }
+    }
+    
+    private func startConnectingAnimation() {
+        // Reuse the pulse animation for connecting state
+        UIView.animate(withDuration: 1.0, delay: 0, options: [.repeat, .autoreverse], animations: {
+            self.pulseView.alpha = 0.6
+        })
+    }
+    
+    private func stopConnectingAnimation() {
+        pulseView.layer.removeAllAnimations()
+        pulseView.alpha = 0
+    }
+    
+    private func handleConnectionError(_ message: String) {
+        DispatchQueue.main.async {
+            self.stopConnectingAnimation()
+            
+            let alert = UIAlertController(title: "接続エラー", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "再試行", style: .default) { _ in
+                self.acceptButtonTapped()
+            })
+            alert.addAction(UIAlertAction(title: "キャンセル", style: .cancel) { _ in
+                self.delegate?.matchingDidCancel()
+            })
+            
+            self.present(alert, animated: true)
+        }
+    }
+    
+    private func startCall(with partner: UserProfile, callId: String) {
+        stopConnectingAnimation()
+        
+        let callVC = CallViewController(callId: callId, partner: partner, isInitiator: true)
+        callVC.modalPresentationStyle = .fullScreen
+        
+        dismiss(animated: false) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+                rootVC.present(callVC, animated: true)
+            }
+        }
+    }
+}
+
+// MARK: - WebRTCServiceDelegate
+
+extension MatchingViewController: WebRTCServiceDelegate {
+    func webRTCDidConnect() {
+        print("✅ WebRTC connected, starting call")
+        
+        DispatchQueue.main.async {
+            guard let partner = self.foundPartner else { return }
+            
+            // Get the call ID from WebRTCService
+            let callId = "call_\(Int.random(in: 1000...9999))"
+            self.startCall(with: partner, callId: callId)
+        }
+    }
+    
+    func webRTCDidDisconnect() {
+        print("❌ WebRTC disconnected during matching")
+        
+        DispatchQueue.main.async {
+            if self.currentState == .confirmed {
+                self.handleConnectionError("接続が切断されました")
+            }
+        }
+    }
+    
+    func webRTCDidReceiveRemoteAudioTrack(_ audioTrack: RTCAudioTrack) {
+        print("🎵 Remote audio track received during matching")
+        // This will be handled by CallViewController
+    }
+    
+    func webRTCDidReceiveError(_ error: String) {
+        print("❌ WebRTC error: \(error)")
+        
+        DispatchQueue.main.async {
+            self.handleConnectionError("WebRTC エラー: \(error)")
+        }
+    }
+    
+    func webRTCDidGenerateIceCandidate(_ candidate: RTCIceCandidate) {
+        print("🧊 ICE candidate generated during matching")
+        // Handled by WebRTCService internally
     }
 }

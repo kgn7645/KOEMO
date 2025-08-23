@@ -132,7 +132,9 @@ extension BlockListViewController: UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if blockedUsers.isEmpty {
-            let cell = tableView.dequeueReusableCell(withIdentifier: "EmptyStateCell", for: indexPath) as! EmptyStateCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "EmptyStateCell", for: indexPath) as? EmptyStateCell else {
+                return UITableViewCell()
+            }
             cell.configure(
                 title: "ブロックしたユーザーはいません",
                 message: "不適切な行動をするユーザーをブロックできます",
@@ -140,7 +142,9 @@ extension BlockListViewController: UITableViewDataSource {
             )
             return cell
         } else {
-            let cell = tableView.dequeueReusableCell(withIdentifier: "BlockedUserCell", for: indexPath) as! BlockedUserCell
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "BlockedUserCell", for: indexPath) as? BlockedUserCell else {
+                return UITableViewCell()
+            }
             cell.configure(with: blockedUsers[indexPath.row])
             return cell
         }
