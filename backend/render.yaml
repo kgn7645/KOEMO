@@ -5,7 +5,7 @@ services:
     repo: https://github.com/kgn7645/KOEMO
     rootDir: backend
     buildCommand: npm install && npm run build || echo "No build script found"
-    startCommand: node dist/index.js || node index.js
+    startCommand: node index.js
     envVars:
       - key: NODE_ENV
         value: production
