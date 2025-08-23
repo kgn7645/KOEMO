@@ -1,0 +1,1 @@
+  2. KOEMO.entitlements ファイルをプロジェクトナビゲーターに追加
