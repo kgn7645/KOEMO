@@ -62,3 +62,13 @@ backend/*.log
 # Build artifacts
 dist/
 build/
+# Large directories to ignore
+KOEMO-expo/
+NetworkTestApp/
+node_modules/
+*.xcworkspace/
+*.xcodeproj/
+Pods/
+build/
+DerivedData/
+
