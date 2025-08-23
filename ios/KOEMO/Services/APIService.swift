@@ -4,7 +4,21 @@ import Alamofire
 class APIService {
     static let shared = APIService()
     
-    private let baseURL = "http://192.168.0.8:3000/api"
+    private let baseURL = "https://koemo-backend.onrender.com/api"
+    
+    // Debug function to test connection
+    func testConnection(completion: @escaping (Bool) -> Void) {
+        AF.request("https://koemo-backend.onrender.com/health")
+            .validate()
+            .response { response in
+                let isConnected = response.error == nil
+                print("🔗 Connection test: \(isConnected ? "SUCCESS" : "FAILED")")
+                if let error = response.error {
+                    print("🔗 Error: \(error)")
+                }
+                completion(isConnected)
+            }
+    }
     private var accessToken: String?
     
     private init() {}

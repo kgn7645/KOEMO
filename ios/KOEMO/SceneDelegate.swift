@@ -13,13 +13,24 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Trigger Local Network Permission early (for iOS 14+)
         triggerLocalNetworkPermission()
         
-        // Check if user is already registered
-        if UserDefaults.standard.string(forKey: "user_id") != nil {
-            // User exists, go to main interface
-            setupMainInterface()
-        } else {
-            // New user, show onboarding
-            setupOnboardingInterface()
+        // Test connection before proceeding
+        APIService.shared.testConnection { isConnected in
+            DispatchQueue.main.async {
+                if isConnected {
+                    print("✅ Server connection successful")
+                    // Check if user is already registered
+                    if UserDefaults.standard.string(forKey: "user_id") != nil {
+                        // User exists, go to main interface
+                        self.setupMainInterface()
+                    } else {
+                        // New user, show onboarding
+                        self.setupOnboardingInterface()
+                    }
+                } else {
+                    print("❌ Server connection failed - showing offline mode")
+                    self.setupOfflineInterface()
+                }
+            }
         }
         
         window?.makeKeyAndVisible()
@@ -56,6 +67,22 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let onboardingVC = OnboardingViewController()
         let navigationController = UINavigationController(rootViewController: onboardingVC)
         window?.rootViewController = navigationController
+    }
+    
+    private func setupOfflineInterface() {
+        let alert = UIAlertController(
+            title: "接続エラー",
+            message: "サーバーに接続できません。ネットワーク接続を確認してアプリを再起動してください。",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            // For now, still show onboarding in offline mode
+            self.setupOnboardingInterface()
+        })
+        
+        let tempVC = UIViewController()
+        window?.rootViewController = tempVC
+        tempVC.present(alert, animated: true)
     }
     
     func switchToMainInterface() {
