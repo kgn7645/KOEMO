@@ -72,3 +72,4 @@ Pods/
 build/
 DerivedData/
 
+*.zip
